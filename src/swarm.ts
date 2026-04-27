@@ -32,6 +32,11 @@ const noncesData = (addr) => encodeFunctionData({
   functionName: 'nonces', args: [addr],
 });
 
+const allowanceData = (owner, spender) => encodeFunctionData({
+  abi: [{ name: 'allowance', type: 'function', inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' }],
+  functionName: 'allowance', args: [owner, spender],
+});
+
 const decodeUint = (data) => decodeFunctionResult({
   abi: [{ name: 'x', type: 'function', inputs: [], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' }],
   functionName: 'x', data,
@@ -51,6 +56,13 @@ function randomPermit2Nonce() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return BigInt('0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+}
+
+function formatSbc(raw, decimals = 6) {
+  const scale = BigInt(10) ** BigInt(decimals);
+  const whole = raw / scale;
+  const fraction = (raw % scale).toString().padStart(decimals, '0').replace(/0+$/, '');
+  return whole.toString() + (fraction ? '.' + fraction : '') + ' SBC';
 }
 
 async function probeFor402(url) {
@@ -86,11 +98,14 @@ async function estimateGasWithFallback(publicClient, txParams, fallbackGas) {
   }
 }
 
-async function waitForTx(publicClient, txHash) {
+async function waitForTx(publicClient, txHash, label) {
   for (let i = 0; i < 90; i++) {
     const receipt = await publicClient.getTransactionReceipt({ hash: txHash }).catch(() => null);
     if (receipt) {
-      if (receipt.status === 'reverted') throw new Error('Transaction reverted (' + txHash.slice(0, 10) + '...)');
+      if (receipt.status === 'reverted') {
+        const prefix = label ? label + ' transaction reverted' : 'Transaction reverted';
+        throw new Error(prefix + ' (' + txHash.slice(0, 10) + '...). Check wallet SBC balance and allowance before retrying.');
+      }
       return receipt;
     }
     await new Promise(r => setTimeout(r, 750));
@@ -216,6 +231,11 @@ export function createSwarm(userConfig) {
     return decodeUint(data.data);
   }
 
+  async function getAllowance(owner, spender) {
+    const data = await publicClient.call({ to: cfg.tokenAddress, data: allowanceData(owner, spender) });
+    return decodeUint(data.data);
+  }
+
   async function launch({ numAgents, requestsPerAgent, generateRequests, callbacks, walletClient, address }) {
     if (running) throw new Error('Swarm is already running');
     const cb = callbacks || {};
@@ -242,13 +262,37 @@ export function createSwarm(userConfig) {
       });
       const totalFunding = agentPlans.reduce((sum, plan) => sum + plan.plannedCost, BigInt(0));
 
+      cb.onStatus?.('Checking wallet balance for ' + formatSbc(totalFunding, cfg.tokenDecimals) + ' swarm funding...');
+      const balance = await getBalance(address);
+      if (balance < totalFunding) {
+        throw new Error(
+          'Insufficient SBC for this swarm: need ' +
+          formatSbc(totalFunding, cfg.tokenDecimals) +
+          ', wallet has ' +
+          formatSbc(balance, cfg.tokenDecimals) +
+          '. Reduce agents/requests or fund the wallet.'
+        );
+      }
+
       cb.onStatus?.('Approving agent funding allowance...');
       cb.onFundingStep?.('approve', 'pending');
       const approveCallData = approveData(cfg.batchContractAddress, totalFunding);
       const approveGas = await estimateGasWithFallback(publicClient, { from: address, to: cfg.tokenAddress, data: approveCallData }, 200000);
       const approveTxHash = await walletClient.sendTransaction({ account: address, to: cfg.tokenAddress, data: approveCallData, gas: approveGas, chain });
-      await waitForTx(publicClient, approveTxHash);
+      await waitForTx(publicClient, approveTxHash, 'Approval');
       cb.onFundingStep?.('approve', 'confirmed');
+
+      cb.onStatus?.('Verifying funding allowance...');
+      const allowance = await getAllowance(address, cfg.batchContractAddress);
+      if (allowance < totalFunding) {
+        throw new Error(
+          'Funding allowance is too low: need ' +
+          formatSbc(totalFunding, cfg.tokenDecimals) +
+          ', approved ' +
+          formatSbc(allowance, cfg.tokenDecimals) +
+          '. Reconnect your wallet and retry the approval.'
+        );
+      }
 
       cb.onStatus?.('Batch funding ' + agentCount + ' agents...');
       cb.onFundingStep?.('batch-transfer', 'pending');
@@ -259,7 +303,7 @@ export function createSwarm(userConfig) {
       );
       const batchGas = await estimateGasWithFallback(publicClient, { from: address, to: cfg.batchContractAddress, data: batchCallData }, 200000 + agentCount * 100000);
       const batchTxHash = await walletClient.sendTransaction({ account: address, to: cfg.batchContractAddress, data: batchCallData, gas: batchGas, chain });
-      await waitForTx(publicClient, batchTxHash);
+      await waitForTx(publicClient, batchTxHash, 'Batch funding');
       cb.onFundingStep?.('batch-transfer', 'confirmed');
 
       cb.onStatus?.('Agent swarm live');
@@ -338,7 +382,7 @@ export function createSwarm(userConfig) {
     currentCallbacks?.onStatus?.('Stopping...');
   }
 
-  return { launch, stop, isRunning: () => running, getBalance, getNonce, chain, config: cfg };
+  return { launch, stop, isRunning: () => running, getBalance, getAllowance, getNonce, chain, config: cfg };
 }
 `;
 }

@@ -656,6 +656,24 @@ table.endpoint-tbl .spark-mini { display: inline-block; vertical-align: middle; 
 .rail .cost-row .v { color: var(--rail-ink, #181E27); }
 .rail .swarm-status { color: var(--rail-muted, #5C5747); }
 .rail .swarm-status.error { color: #BD3131; }
+.swarm-warning {
+  margin: 0 0 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(189, 76, 0, 0.38);
+  border-left: 3px solid #BD4C00;
+  border-radius: 6px;
+  background: rgba(255, 122, 26, 0.08);
+  color: #7A3200;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.swarm-warning.testnet {
+  border-color: rgba(37, 99, 235, 0.22);
+  border-left-color: #2563EB;
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--rail-muted, #5C5747);
+}
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 1px solid var(--line-2);
@@ -1163,6 +1181,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
       <div class="rail-section">
         <h3>Traffic generator</h3>
         <p class="rail-hint">Simulate autonomous agents paying via x402 to drive live events into the dashboard.</p>
+        <div class="swarm-warning" id="swarmNetworkWarning"></div>
         <div class="swarm-grid">
           <div class="field">
             <label>Agents</label>
@@ -1266,6 +1285,13 @@ function apiUrl(path) {
   const url = new URL(path, location.origin);
   url.searchParams.set('network', currentNetworkKey);
   return url;
+}
+function clampNumberInput(id, min, max, fallback) {
+  const el = document.getElementById(id);
+  const value = parseInt(el.value, 10);
+  const clamped = Math.min(max, Math.max(min, Number.isFinite(value) ? value : fallback));
+  el.value = String(clamped);
+  return clamped;
 }
 
 /* Ease-out counter tween */
@@ -1717,6 +1743,18 @@ function syncWalletClient() {
   walletClient = createWalletClientFn({ chain: swarm.chain, transport: customTransportFn(walletProvider) });
 }
 
+function updateNetworkWarning() {
+  const warning = document.getElementById('swarmNetworkWarning');
+  if (!warning) return;
+  if (currentNetworkKey === 'mainnet') {
+    warning.className = 'swarm-warning';
+    warning.textContent = 'Mainnet uses real SBC. Batch funding transfers the estimated spend from your wallet to generated agent wallets before requests run.';
+  } else {
+    warning.className = 'swarm-warning testnet';
+    warning.textContent = 'Testnet mode uses test SBC. Batch funding still moves tokens, but no mainnet SBC is spent.';
+  }
+}
+
 window.setNetwork = async function(networkKey) {
   if (!BOOT.networks[networkKey]) return;
   if (swarm && swarm.isRunning()) swarm.stop();
@@ -1725,6 +1763,8 @@ window.setNetwork = async function(networkKey) {
   swarm = null;
   document.querySelectorAll('#networkToggle button').forEach(btn => btn.classList.toggle('active', btn.dataset.network === currentNetworkKey));
   document.getElementById('activeNetworkLabel').textContent = currentConfig.label;
+  updateNetworkWarning();
+  window.updateCost();
   const url = new URL(location.href);
   url.searchParams.set('network', currentNetworkKey);
   history.replaceState(null, '', url);
@@ -1833,10 +1873,11 @@ function estimateSwarmCostRaw(agents, perAgent, endpointIds) {
   return total;
 }
 window.updateCost = function() {
-  const agents = Math.min(100, Math.max(1, parseInt(document.getElementById('swarmAgents').value) || 1));
-  const perAgent = Math.max(1, parseInt(document.getElementById('swarmCount').value) || 1);
+  const agents = clampNumberInput('swarmAgents', 1, 100, 1);
+  const perAgent = clampNumberInput('swarmCount', 1, 1000, 1);
   const raw = estimateSwarmCostRaw(agents, perAgent, selectedEndpointIds());
   document.getElementById('swarmCost').textContent = (raw / 1_000_000).toFixed(5) + ' SBC';
+  return raw;
 };
 
 function sampleQueries(endpoint, i) {
@@ -1896,8 +1937,9 @@ window.launchSwarm = async function() {
       return;
     }
   }
-  const agents = parseInt(document.getElementById('swarmAgents').value) || 8;
-  const perAgent = parseInt(document.getElementById('swarmCount').value) || 4;
+  window.updateCost();
+  const agents = clampNumberInput('swarmAgents', 1, 100, 8);
+  const perAgent = clampNumberInput('swarmCount', 1, 1000, 4);
   const endpointIds = selectedEndpointIds();
   const status = document.getElementById('swarmStatus');
   document.getElementById('swarmBtn').style.display = 'none';
