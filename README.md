@@ -39,13 +39,13 @@ Server listens on `process.env.PORT ?? 3000`.
 
 ## Deploy
 
-Already configured for Railway via `railway.toml` (RAILPACK builder). To redeploy from local:
+Already configured for Railway via `railway.toml` (RAILPACK builder). The production Railway service is connected to `radius-workshop/merchant-console-demo` and deploys from `main`.
+
+To redeploy manually from local:
 
 ```bash
 railway up --detach -m "your message"
 ```
-
-GitHub auto-deploy on push is **not yet wired** — the Railway GitHub app needs to be installed on the `radius-workshop` org (https://github.com/apps/railway-app/installations/new) by a GitHub org owner. Once installed, attach via the Railway dashboard or `railway add --repo radius-workshop/merchant-console-demo`.
 
 ## Configuration
 
@@ -54,7 +54,7 @@ All env vars are optional — sane mainnet + testnet defaults live in `src/netwo
 | Var | Default |
 |---|---|
 | `PORT` | `3000` |
-| `PAYMENT_ADDRESS` | `0xDA60059faBf3e71338c27C505CED519f55d605DD` |
+| `PAYMENT_ADDRESS` | `0x08A51318C08A31E71b9489f578BbB2B5b7E5E329` |
 | `SBC_TOKEN_ADDRESS` | `0x33ad9e4bd16b69b5bfded37d8b5d9ff9aba014fb` (mainnet) |
 | `RPC_URL_MAINNET` / `RPC_URL_TESTNET` | Radius public RPCs |
 | `FACILITATOR_API_KEY` | unset (no auth header sent) |
