@@ -181,6 +181,9 @@ a { color: inherit; text-decoration: none; }
   gap: 0;
   min-height: 100vh;
 }
+body:not(.x402-on) .main-wrap {
+  grid-template-columns: minmax(0, 1fr);
+}
 .canvas {
   padding: 28px 28px 48px;
   min-width: 0;
@@ -218,6 +221,12 @@ body.x402-on .canvas > .chart-panel     { order: 3; }
   overflow-x: hidden;
   min-width: 0;
   box-shadow: inset 8px 0 24px -12px rgba(0,0,0,0.45);
+}
+body:not(.x402-on) .rail { display: none; }
+body.x402-on .rail { display: block; animation: rail-reveal 260ms ease-out; }
+@keyframes rail-reveal {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 .rail-seg {
   display: flex;
@@ -434,9 +443,21 @@ body.x402-on .canvas > .chart-panel     { order: 3; }
   content: ""; width: 8px; height: 8px; border-radius: 2px;
   background: var(--ch-unmon);
 }
-body:not(.x402-on) .chart-head-caption strong::before {
-  background: transparent;
-  border: 1px dashed rgba(212,168,74,0.55);
+.chart-head-caption .policy-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(212,168,74,0.28);
+  color: var(--ch-unmon);
+  background: rgba(212,168,74,0.08);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+body.x402-on .chart-head-caption .policy-chip {
+  border-color: rgba(255,122,26,0.32);
+  color: var(--ch-x402);
+  background: rgba(255,122,26,0.10);
 }
 .chart-x-axis-traffic {
   left: 8px; right: 8px; bottom: 4px;
@@ -859,19 +880,15 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
 .chart-svg .axis-tick { fill: var(--dim); font-family: var(--mono); font-size: 10px; }
 .chart-svg .band-human   { fill: var(--ch-human);  opacity: 0.78; }
 .chart-svg .band-apikey  { fill: var(--ch-apikey); opacity: 0.78; }
-.chart-svg .band-unmon   { fill: var(--ch-unmon);  opacity: 0.78; }
-.chart-svg .band-unmon, .chart-svg .band-unmon-hidden {
+.chart-svg .band-unmon   { fill: var(--ch-unmon);  opacity: 0.76; }
+.chart-svg .band-unmon, .chart-svg .band-unmon-blocked {
   fill: var(--ch-unmon);
-  transition: opacity 600ms ease-out, fill 600ms ease-out;
+  transition: opacity 600ms ease-out;
 }
-.chart-svg .band-unmon-hidden {
-  fill: rgba(255,255,255,0.04);
-  stroke: rgba(212,168,74,0.20);
-  stroke-width: 1;
-  stroke-dasharray: 3 4;
-  opacity: 0.5;
+.chart-svg .band-unmon-blocked {
+  opacity: 0.68;
 }
-.chart-svg .band-x402 { fill: var(--ch-x402); }
+.chart-svg .band-x402 { fill: var(--ch-x402); opacity: 0.86; }
 
 /* ─── catalog drawer ─────────────────────────────────── */
 .catalog-btn {
@@ -987,6 +1004,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
 }
 @media (max-width: 980px) {
   .main-wrap { grid-template-columns: 1fr; }
+  body:not(.x402-on) .main-wrap { grid-template-columns: 1fr; }
   .rail { border-left: 0; border-top: 1px dashed var(--line-2); position: static; max-height: none; }
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .topbar-mid { display: none; }
@@ -1041,7 +1059,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
 
       <section class="kpi-strip" id="kpiStrip">
         <div class="kpi plain">
-          <div class="label"><span class="cdot"></span>Requests 24h</div>
+          <div class="label"><span class="cdot"></span>Page requests 24h</div>
           <div class="value" id="kpiTotalReqs">—</div>
           <div class="foot">
             <svg class="spark" id="sparkTotal" viewBox="0 0 120 24" preserveAspectRatio="none"></svg>
@@ -1049,7 +1067,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
           </div>
         </div>
         <div class="kpi unmon">
-          <div class="label"><span class="cdot"></span>Unmonetized agents 24h<span class="tag">no channel</span></div>
+          <div class="label"><span class="cdot"></span>Blocked demand 24h<span class="tag" id="demandPolicyTag">403</span></div>
           <div class="value" id="kpiUnmon">—</div>
           <div class="foot">
             <svg class="spark" id="sparkUnmon" viewBox="0 0 120 24" preserveAspectRatio="none"></svg>
@@ -1076,7 +1094,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
 
       <section class="panel chart-panel">
         <div class="panel-head">
-          <span class="title">Traffic by channel · last 36 min</span>
+          <span class="title">Product/API page traffic · last 36 min</span>
           <span class="chart-head-caption" id="chartAnnot"></span>
         </div>
         <div class="panel-body" style="padding: 12px 16px 0;">
@@ -1097,7 +1115,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
 
       <section class="panel x402-live-panel" id="x402LivePanel" style="margin-bottom: 20px;">
         <div class="panel-head">
-          <span class="title">x402 channel · live session</span>
+          <span class="title">Paid agent channel · live revenue</span>
           <span id="x402LiveStatus">awaiting traffic</span>
         </div>
         <div class="x402-live-chart">
@@ -1122,7 +1140,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
               <tr>
                 <th>Endpoint</th>
                 <th class="num">Price</th>
-                <th class="num">Requests 24h</th>
+                <th class="num">Agent demand 24h</th>
                 <th class="num x402-col">x402 paid</th>
                 <th class="num x402-col">Revenue</th>
                 <th class="num x402-col">Avg settle</th>
@@ -1131,7 +1149,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
             </thead>
             <tbody id="endpointTblBody"></tbody>
           </table>
-          <div class="tbl-footnote">Endpoints return stubbed security intelligence; the 402 challenge and settlement path are real.</div>
+          <div class="tbl-footnote">24h demand reflects traffic currently blocked or unserved; endpoint responses are demo data, while the 402 challenge and settlement path are real.</div>
         </div>
 
         <div class="panel stream-side">
@@ -1249,6 +1267,8 @@ let createWalletClientFn = null;
 let customTransportFn = null;
 let dependencyLoadPromise = null;
 let tweenCurrent = {}; // id → current number for counter tween
+const X402_TRAFFIC_VISUAL_REQUESTS_PER_PAYMENT = 420;
+const X402_TRAFFIC_VISUAL_MAX_SHARE = 0.58;
 
 /* ─── util ─────────────────────────────────────────────── */
 function fmtNum(n) { return new Intl.NumberFormat('en-US').format(Math.round(n)); }
@@ -1388,13 +1408,18 @@ function drawChart() {
   const plotH = H - padT - padB;
   const series = baseline.series;
   const n = series.length;
-  const rows = series.map(p => ({
-    human: p.human,
-    apikey: p.apiKey,
-    unmon: p.unmonetizedAgent,
-  }));
-  const totals = rows.map(r => r.human + r.apikey + r.unmon);
-  const maxTotal = Math.max(1, ...totals);
+  const paidVisual = x402On ? paidTrafficVisualByBucket(series) : Array.from({ length: n }, () => 0);
+  const rows = series.map((p, i) => {
+    const blocked = p.unmonetizedAgent;
+    const paid = Math.min(blocked, paidVisual[i] || 0);
+    return {
+      human: p.human,
+      apikey: p.apiKey,
+      unmon: Math.max(0, blocked - paid),
+      x402: paid,
+    };
+  });
+  const maxTotal = Math.max(1, ...rows.map(r => r.human + r.apikey + r.unmon + r.x402));
 
   const x = i => padL + (i / (n - 1)) * plotW;
   const y = v => padT + plotH - (v / maxTotal) * plotH;
@@ -1414,10 +1439,12 @@ function drawChart() {
   const humanBase  = i => 0;
   const apikeyBase = i => rows[i].human;
   const unmonBase  = i => rows[i].human + rows[i].apikey;
+  const x402Base    = i => rows[i].human + rows[i].apikey + rows[i].unmon;
 
   const humanHeights  = rows.map(r => r.human);
   const apikeyHeights = rows.map(r => r.apikey);
   const unmonHeights  = rows.map(r => r.unmon);
+  const x402Heights   = rows.map(r => r.x402);
 
   let gridSvg = '';
   for (let g = 1; g < 5; g++) {
@@ -1426,15 +1453,18 @@ function drawChart() {
   }
 
   const defs = svg.querySelector('defs')?.outerHTML || '';
-  // Unmon band class swaps based on x402On state — CSS handles fade
-  const unmonClass = x402On ? 'band-unmon' : 'band-unmon-hidden';
+  const unmonClass = x402On ? 'band-unmon' : 'band-unmon-blocked';
+  const x402Band = x402On && x402Heights.some(v => v > 0)
+    ? '<path class="band-x402" d="' + bandPath(x402Heights, x402Base) + '"/>'
+    : '';
 
   svg.innerHTML =
     defs +
     gridSvg +
     '<path class="band-human" d="' + bandPath(humanHeights, humanBase) + '"/>' +
     '<path class="band-apikey" d="' + bandPath(apikeyHeights, apikeyBase) + '"/>' +
-    '<path class="' + unmonClass + '" d="' + bandPath(unmonHeights, unmonBase) + '"/>';
+    '<path class="' + unmonClass + '" d="' + bandPath(unmonHeights, unmonBase) + '"/>' +
+    x402Band;
 
   // HTML overlay x-axis labels (not stretched by SVG aspect)
   const xLabels = document.getElementById('trafficXLabels');
@@ -1455,14 +1485,33 @@ function drawChart() {
   renderLegend();
 }
 
+function paidTrafficVisualByBucket(series) {
+  const buckets = Array.from({ length: series.length }, () => 0);
+  const events = (lastStats && lastStats.events) || [];
+  const now = Date.now();
+  events.forEach(ev => {
+    const ts = Number(ev.ts || 0);
+    if (!Number.isFinite(ts) || ts <= 0) return;
+    const minutesAgo = Math.floor((now - ts) / 60000);
+    if (minutesAgo < 0 || minutesAgo >= series.length) return;
+    const idx = series.length - 1 - minutesAgo;
+    buckets[idx] += X402_TRAFFIC_VISUAL_REQUESTS_PER_PAYMENT;
+  });
+  return buckets.map((v, i) => {
+    const cap = Math.round(Number(series[i].unmonetizedAgent || 0) * X402_TRAFFIC_VISUAL_MAX_SHARE);
+    return Math.min(cap, v);
+  });
+}
+
 function updateChartAnnotation() {
   const el = document.getElementById('chartAnnot');
   if (!el) return;
   const unmon = baseline ? baseline.estimatedUnmonetizedAgentRequests24h : 0;
   if (!x402On) {
-    el.innerHTML = '<strong>Hidden agent traffic</strong> · ' + fmtCompact(unmon) + '/d unserved · toggle x402 to reveal';
+    el.innerHTML = '<span class="policy-chip">403 block policy</span>' + fmtCompact(unmon) + '/d blocked or unserved';
   } else {
-    el.innerHTML = '<strong>Unmonetized agent traffic</strong> · ' + fmtCompact(unmon) + '/d · ready for x402 channel';
+    const paid = lastStats ? Number(lastStats.paidRequests || 0) : 0;
+    el.innerHTML = '<span class="policy-chip">402 paid access</span>' + (paid > 0 ? fmtNum(paid) + ' paid requests settled live' : 'ready for agent buyers');
   }
 }
 
@@ -1473,11 +1522,11 @@ function renderLegend() {
   const paid = lastStats ? Number(lastStats.paidRequests || 0) : 0;
   const items = [
     { sw: 'var(--ch-human)', label: 'human', count: fmtCompact(last.human) + '/min' },
-    { sw: 'var(--ch-apikey)', label: 'api-key', count: fmtCompact(last.apiKey) + '/min' },
+    { sw: 'var(--ch-apikey)', label: 'API-key subscribers', count: fmtCompact(last.apiKey) + '/min' },
+    { sw: 'var(--ch-unmon)', label: 'blocked bot/agent demand', count: fmtCompact(last.unmonetizedAgent) + '/min' },
   ];
   if (x402On) {
-    items.push({ sw: 'var(--ch-unmon)', label: 'unmonetized agents', count: fmtCompact(last.unmonetizedAgent) + '/min' });
-    items.push({ sw: 'var(--ch-x402)', label: 'x402 paid (live)', count: fmtNum(paid) });
+    items.push({ sw: 'var(--ch-x402)', label: 'x402 paid access', count: fmtNum(paid) + ' real' });
   }
   el.innerHTML = items.map(it =>
     '<span class="item"><span class="swatch" style="background:' + it.sw + '"></span>' + it.label + ' <span class="count">' + it.count + '</span></span>'
@@ -1704,6 +1753,8 @@ window.toggleX402 = function() {
 function syncX402Toggle() {
   document.querySelectorAll('[data-x402-toggle]').forEach(b => b.classList.toggle('on', x402On));
   document.querySelectorAll('[data-x402-label]').forEach(el => { el.textContent = x402On ? 'x402 ON' : 'x402 OFF'; });
+  const demandPolicyTag = document.getElementById('demandPolicyTag');
+  if (demandPolicyTag) demandPolicyTag.textContent = x402On ? '402' : '403';
   document.body.classList.toggle('x402-on', x402On);
   drawChart();
   renderLegend();
@@ -2009,6 +2060,7 @@ window.refreshStats = async function() {
 
     renderPaidStream();
     renderEndpointTable();
+    drawChart();
     renderLegend();
     renderX402LiveChart();
   } catch (err) {
