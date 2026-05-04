@@ -514,6 +514,7 @@ table.endpoint-tbl .ep-path { color: var(--muted); font-family: var(--mono); fon
 table.endpoint-tbl .num { font-family: var(--mono); color: var(--ink); }
 table.endpoint-tbl .num.muted { color: var(--muted); }
 table.endpoint-tbl .num.x402 { color: var(--ch-x402); }
+body:not(.x402-on) table.endpoint-tbl .price-col { display: none; }
 table.endpoint-tbl .spark-mini { display: inline-block; vertical-align: middle; }
 .tbl-footnote {
   color: var(--muted); font-size: 11px; font-family: var(--mono);
@@ -1139,7 +1140,7 @@ body:not(.x402-on) .endpoint-tbl th.x402-col, body:not(.x402-on) .endpoint-tbl t
             <thead>
               <tr>
                 <th>Endpoint</th>
-                <th class="num">Price</th>
+                <th class="num price-col">Price</th>
                 <th class="num">Agent demand 24h</th>
                 <th class="num x402-col">x402 paid</th>
                 <th class="num x402-col">Revenue</th>
@@ -1308,10 +1309,15 @@ function apiUrl(path) {
 }
 function clampNumberInput(id, min, max, fallback) {
   const el = document.getElementById(id);
-  const value = parseInt(el.value, 10);
-  const clamped = Math.min(max, Math.max(min, Number.isFinite(value) ? value : fallback));
+  const clamped = readNumberInput(id, min, max, fallback);
   el.value = String(clamped);
   return clamped;
+}
+function readNumberInput(id, min, max, fallback) {
+  const el = document.getElementById(id);
+  if (!el || el.value.trim() === '') return fallback;
+  const value = parseInt(el.value, 10);
+  return Math.min(max, Math.max(min, Number.isFinite(value) ? value : fallback));
 }
 
 /* Ease-out counter tween */
@@ -1690,7 +1696,7 @@ function renderEndpointTable() {
           '<div class="ep-name">' + escapeHtml(ep.label) + '</div>' +
           '<div class="ep-path">' + escapeHtml(ep.method + ' ' + ep.path) + '</div>' +
         '</td>' +
-        '<td class="num">' + escapeHtml(ep.priceSbc) + '</td>' +
+        '<td class="num price-col">' + escapeHtml(ep.priceSbc) + '</td>' +
         '<td class="num">' + fmtCompact(trafficTotal) + '</td>' +
         '<td class="num x402-col ' + (paid > 0 ? 'x402' : 'muted') + '">' + (paid > 0 ? fmtNum(paid) : '—') + '</td>' +
         '<td class="num x402-col ' + (revSbc > 0 ? 'x402' : 'muted') + '">' + (revSbc > 0 ? revSbc.toFixed(5) : '—') + '</td>' +
@@ -1924,8 +1930,8 @@ function estimateSwarmCostRaw(agents, perAgent, endpointIds) {
   return total;
 }
 window.updateCost = function() {
-  const agents = clampNumberInput('swarmAgents', 1, 100, 1);
-  const perAgent = clampNumberInput('swarmCount', 1, 1000, 1);
+  const agents = readNumberInput('swarmAgents', 0, 100, 0);
+  const perAgent = readNumberInput('swarmCount', 0, 1000, 0);
   const raw = estimateSwarmCostRaw(agents, perAgent, selectedEndpointIds());
   document.getElementById('swarmCost').textContent = (raw / 1_000_000).toFixed(5) + ' SBC';
   return raw;
