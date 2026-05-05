@@ -1257,6 +1257,8 @@ let currentNetworkKey = new URLSearchParams(location.search).get('network') === 
 let currentConfig = BOOT.networks[currentNetworkKey];
 let x402On = false; // master toggle: reveals unmon band + live x402 panel
 let baseline = null;
+let rawStats = null;
+let statsBaseline = null;
 let lastStats = null;
 let connectedAddress = null;
 let walletClient = null;
@@ -1318,6 +1320,43 @@ function readNumberInput(id, min, max, fallback) {
   if (!el || el.value.trim() === '') return fallback;
   const value = parseInt(el.value, 10);
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : fallback));
+}
+function clampDelta(current, baseline) {
+  return Math.max(0, Number(current || 0) - Number(baseline || 0));
+}
+function subtractCounts(currentCounts, baselineCounts) {
+  const out = {};
+  const keys = new Set([
+    ...Object.keys(currentCounts || {}),
+    ...Object.keys(baselineCounts || {}),
+  ]);
+  keys.forEach(key => {
+    out[key] = clampDelta(currentCounts?.[key], baselineCounts?.[key]);
+  });
+  return out;
+}
+function newestEventTs(stats) {
+  const events = (stats && stats.events) || [];
+  return events.reduce((max, ev) => Math.max(max, Number(ev.ts || 0)), 0);
+}
+function derivePageStats(current, baselineStats) {
+  const baselineNewestTs = newestEventTs(baselineStats);
+  const events = ((current && current.events) || []).filter(ev => Number(ev.ts || 0) > baselineNewestTs);
+  const totalRevenueRaw = clampDelta(current?.totalRevenueRaw, baselineStats?.totalRevenueRaw);
+  const averageSettlementMs = events.length > 0
+    ? Math.round(events.reduce((sum, ev) => sum + Number(ev.latencyMs || 0), 0) / events.length)
+    : 0;
+
+  return {
+    ...current,
+    paidRequests: clampDelta(current?.paidRequests, baselineStats?.paidRequests),
+    totalRevenueRaw,
+    totalRevenueSbc: (totalRevenueRaw / 1_000_000).toFixed(6),
+    averageSettlementMs,
+    endpointCounts: subtractCounts(current?.endpointCounts, baselineStats?.endpointCounts),
+    networkCounts: subtractCounts(current?.networkCounts, baselineStats?.networkCounts),
+    events,
+  };
 }
 
 /* Ease-out counter tween */
@@ -2050,18 +2089,18 @@ window.stopSwarm = function() {
 window.refreshStats = async function() {
   try {
     const res = await fetch('/api/stats');
-    const stats = await res.json();
-    lastStats = stats;
-    const paid = Number(stats.paidRequests || 0);
-    const rev = Number(stats.totalRevenueSbc || 0);
-    const avg = Number(stats.averageSettlementMs || 0);
+    rawStats = await res.json();
+    if (!statsBaseline) statsBaseline = rawStats;
+    lastStats = derivePageStats(rawStats, statsBaseline);
+    const paid = Number(lastStats.paidRequests || 0);
+    const rev = Number(lastStats.totalRevenueSbc || 0);
+    const avg = Number(lastStats.averageSettlementMs || 0);
+    const rpsText = document.getElementById('swarmRps')?.textContent || '0.0';
 
-    if (paid > 0) {
-      tweenNumber('paidRequests', paid, 400, fmtNum);
-      tweenNumber('liveRevenue', rev, 400, n => n.toFixed(5));
-      document.getElementById('avgSettlement').textContent = 'avg ' + Math.round(avg) + 'ms';
-      document.getElementById('x402SettleFoot').innerHTML = 'p50 ' + Math.round(avg) + 'ms · <span id="swarmRps">' + (document.getElementById('swarmRps')?.textContent || '0.0') + '</span> rps';
-    }
+    tweenNumber('paidRequests', paid, 400, fmtNum);
+    tweenNumber('liveRevenue', rev, 400, n => n.toFixed(5));
+    document.getElementById('avgSettlement').textContent = paid > 0 ? 'avg ' + Math.round(avg) + 'ms' : 'avg —';
+    document.getElementById('x402SettleFoot').innerHTML = 'p50 ' + (paid > 0 ? Math.round(avg) + 'ms' : '—ms') + ' · <span id="swarmRps">' + rpsText + '</span> rps';
     document.getElementById('lastUpdated').textContent = 'updated ' + new Date().toLocaleTimeString([], { hour12: false });
 
     renderPaidStream();
