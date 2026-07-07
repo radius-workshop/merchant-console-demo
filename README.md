@@ -67,3 +67,7 @@ All env vars are optional — sane mainnet + testnet defaults live in `src/netwo
 - TypeScript with NodeNext module resolution; imports use `.js` extensions.
 - Stats are in-memory only; a redeploy resets them.
 - Frontend HTML and the swarm visualization JS are server-rendered from TS in `src/frontend.ts` and `src/swarm.ts`.
+
+---
+
+> ⚠️ **Demo code — not production-ready.** Provided as-is, without warranty, and may contain known, unpatched vulnerabilities (including in dependencies). If you reuse it, run your own security and supply-chain scans and patch before deploying.
